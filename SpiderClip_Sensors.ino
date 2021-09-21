@@ -1,4 +1,4 @@
-
+//Libraries
 #include <Adafruit_MPU6050.h>
 #include <Adafruit_Sensor.h>
 #include <SparkFun_Bio_Sensor_Hub_Library.h>
@@ -8,39 +8,53 @@
 int resPin = 4;
 int mfioPin = 5;
 
-
+//HeartRate sensor
 SparkFun_Bio_Sensor_Hub bioHub(resPin, mfioPin); 
+bioData body;
 
-bioData body;  
+//MPU  
 Adafruit_MPU6050 mpu;
+
+//StepCount
 int steps=0;
+
+//----------------SetUp------------------------
 void setup(){
+//MPU
 mpu.begin();
-  Serial1.begin(9600);
+Serial1.begin(9600);
+Wire.begin();
 
-  Wire.begin();
-  int result = bioHub.begin();
+//HR-sensor
+int result = bioHub.begin();
 int error = bioHub.configBpm(MODE_TWO);
-  mpu.setAccelerometerRange(MPU6050_RANGE_8_G);
-  
-  mpu.setGyroRange(MPU6050_RANGE_500_DEG);
-  
-  mpu.setFilterBandwidth(MPU6050_BAND_21_HZ);
-  
 
-  delay(100);
+//MPU
+mpu.setAccelerometerRange(MPU6050_RANGE_8_G);
+mpu.setGyroRange(MPU6050_RANGE_500_DEG);
+mpu.setFilterBandwidth(MPU6050_BAND_21_HZ);
+  
+delay(100);
 }
 
+//----------------Loop------------------------
 void loop(){
+
+//HR-sensor
 body = bioHub.readBpm();
 
+//MPU
 sensors_event_t a, g, temp;
 mpu.getEvent(&a, &g, &temp);
+
 float totalacc = sqrt(((a.acceleration.x) * (a.acceleration.x)) + ((a.acceleration.y) * (a.acceleration.y)) + ((a.acceleration.z) * (a.acceleration.z)));
+
 if (totalacc>10.4)
 {
   steps++;
 }
+
+//SerialPrinting
 Serial1.print("{");
 
 Serial1.print("\"b\":");
@@ -71,15 +85,7 @@ Serial1.print(",");
 Serial1.print("\"temp\":");
 Serial1.print(temp.temperature);
 
-
-
 Serial1.println("}");
-
-
-
-
-
-
     
-    delay(250); 
+delay(250); 
 }
