@@ -1,68 +1,76 @@
-# SpiderClip\_Sensors
+# SpiderClip Sensor Platform
 
-*Arduino Nano 33 BLE sketch for SpiderClip sensor BLE service.*
+*Arduino Nano 33 BLE sketch acting as BLE Peripheral (sensor) in the SpiderClip network.*
 
 ## Overview
 
-This firmware implements a Bluetooth Low Energy (BLE) peripheral on an Arduino Nano 33 BLE board. It reads data from a heart-rate sensor and the on-board 3‑axis IMU, then exposes six BLE characteristics for remote monitoring:
+The **SpiderClip Sensor Platform** firmware turns an Arduino Nano 33 BLE into a BLE Peripheral that provides real-time sensor data. It reads heart-rate and confidence/oxygen metrics from a DFRobot heart-rate module and 3-axis acceleration from the on‑board LSM6DS3 IMU, then advertises these as six BLE characteristics for any BLE Central to consume.
 
-| Characteristic UUID                    | Name           | Description                         |
-| -------------------------------------- | -------------- | ----------------------------------- |
-| `19B10001-E8F2-537E-4F6C-D104768A1212` | Confidence     | Sensor confidence level (0–100)     |
-| `19B10001-E8F2-537E-4F6C-D104768A1213` | Oxygen         | Blood oxygen level (%)              |
-| `19B10001-E8F2-537E-4F6C-D104768A1214` | HeartRate      | Heart rate value (beats per minute) |
-| `19B10001-E8F2-537E-4F6C-D104768A1215` | Acceleration X | X‑axis acceleration (in milli‑g)    |
-| `19B10001-E8F2-537E-4F6C-D104768A1216` | Acceleration Y | Y‑axis acceleration (in milli‑g)    |
-| `19B10001-E8F2-537E-4F6C-D104768A1217` | Acceleration Z | Z‑axis acceleration (in milli‑g)    |
+## Characteristics
+
+| UUID                                   | Characteristic | Description                        |
+| -------------------------------------- | -------------- | ---------------------------------- |
+| `19B10001-E8F2-537E-4F6C-D104768A1212` | Confidence     | Sensor confidence level (0–100)    |
+| `19B10001-E8F2-537E-4F6C-D104768A1213` | Oxygen         | Blood oxygen saturation percentage |
+| `19B10001-E8F2-537E-4F6C-D104768A1214` | HeartRate      | Heart rate (beats per minute)      |
+| `19B10001-E8F2-537E-4F6C-D104768A1215` | Acceleration X | X-axis acceleration (milli‑g)      |
+| `19B10001-E8F2-537E-4F6C-D104768A1216` | Acceleration Y | Y-axis acceleration (milli‑g)      |
+| `19B10001-E8F2-537E-4F6C-D104768A1217` | Acceleration Z | Z-axis acceleration (milli‑g)      |
+
+The service UUID is `19B10000-E8F2-537E-4F6C-D104768A1214` and the device advertises as **SpiderClip\_Sensor**.
 
 ## Dependencies
 
-* **Arduino Nano 33 BLE** (or any Arduino board with nRF52840)
+* **Arduino Nano 33 BLE** (nRF52840)
 * **ArduinoBLE** library
 * **DFRobot\_Heartrate** library
-* **Arduino\_LSM6DS3** (built‑in IMU support)
+* **Arduino\_LSM6DS3** library (built‑in with Arduino)
 
-Install via **Sketch → Include Library → Manage Libraries...** in the Arduino IDE.
+Install the libraries via **Sketch → Include Library → Manage Libraries...** in the Arduino IDE.
 
-## Hardware Connections
+## Wiring
 
-1. **Heart‑rate sensor** on pin `A0` (configured as `heartratePin`).
-2. **Power control** on pin `12` (enabled at startup).
-3. **IMU** is on‑board; no wiring required.
+* **Heart-rate module** connected to:
+
+  * Signal pin → `A0` (configured as `heartratePin`)
+  * Power and ground → `5V`/`GND` (controlled by `PowerPin` GPIO 12)
+* **IMU** is on‑board; no external wiring required.
 
 ## Installation & Upload
 
-1. Clone or download this repository.
-2. Open `SpiderClip_Sensors.ino` in the Arduino IDE.
-3. Select **Tools → Board → Arduino Nano 33 BLE**.
-4. Select the correct **Port** under **Tools → Port**.
-5. Click **Upload**.
+1. **Clone** or **download** this repository.
+2. **Open** `SpiderClip_SensorPlatform.ino` in the Arduino IDE.
+3. **Select** board: **Tools → Board → Arduino Nano 33 BLE**.
+4. **Select** port: **Tools → Port →** your device’s COM port.
+5. Click the **Upload** button.
 
-## How It Works
+## Usage
 
-* On startup, the sketch powers the sensor module and initializes serial, BLE, the IMU, and the heart‑rate sensor.
-* It sets up a custom BLE service (`19B10000-E8F2-537E-4F6C-D104768A1214`) and adds six integer characteristics.
-* During each loop, the code:
+1. Open **Serial Monitor** at **9600 baud**.
+2. Power on the board. You should see:
 
-  1. Waits for a BLE central to connect.
-  2. Continuously reads heart‑rate and acceleration.
-  3. Writes the latest values into the corresponding BLE characteristics.
-  4. Logs data to `Serial` for debugging.
-* When the central disconnects, it resumes advertising.
+   ```text
+   Sensor-Plattform gestartet
+   BLE Sensor Peripheral aktiv
+   ```
+3. The device will advertise as **SpiderClip\_Sensor** and serve six characteristics.
+4. Any BLE Central (e.g. SpiderClip Communication Interface) can connect and read live values.
 
 ## Customization
 
-* Change UUIDs or characteristic properties in the sketch header.
-* Adjust sensor sampling rates by modifying `delay()` values.
+* **Local name**: change `BLE.setLocalName("...")` to advertise a custom name.
+* **Service/characteristic UUIDs**: modify the UUID strings in the code to your own.
+* **Sampling rate**: adjust the `delay(100)` at the end of the loop for faster or slower updates.
+* **Power control**: change `PowerPin` logic to suit different sensor modules.
 
 ## Troubleshooting
 
-* **Header not found**: ensure `ArduinoBLE.h` is installed and listed under **Sketch → Include Library**.
-* **BLE not advertising**: verify the board is powered and the IMU initialized successfully.
-* **No sensor data**: check wiring to the heart‑rate sensor and that `heartratePin` matches.
+* **BLE not starting**: verify `BLE.begin()` returns true and your board is Arduino Nano 33 BLE.
+* **No characteristics visible**: ensure the service and characteristics are added before calling `BLE.advertise()`.
+* **Sensor data missing**: check heart‑rate module wiring and confirm `IMU.begin()` succeeds.
 
 ## More Information
 
-Detailed setup guides and advanced documentation are available on our website:
+Detailed setup guides, advanced configurations, and troubleshooting tips are available at:
 
 > [https://d-queck.github.io/SpiderClip\_SetUp/](https://d-queck.github.io/SpiderClip_SetUp/)
