@@ -1,80 +1,117 @@
+#include <ArduinoBLE.h>
+#include "DFRobot_Heartrate.h"
+#include <Arduino_LSM6DS3.h>
+#define heartratePin A0
 
-#include <Adafruit_MPU6050.h>
-#include <Adafruit_Sensor.h>
-#include <SparkFun_Bio_Sensor_Hub_Library.h>
-#include <Wire.h>
+int PowerPin = 12;     
+DFRobot_Heartrate heartrate(DIGITAL_MODE);   // ANALOG_MODE or DIGITAL_MODE
+BLEService ledService("19B10000-E8F2-537E-4F6C-D104768A1214"); // BLE LED Service
+BLEIntCharacteristic ConfidenceCharacteristic("19B10001-E8F2-537E-4F6C-D104768A1212", BLERead | BLEWrite);
+BLEIntCharacteristic OxygenCharacteristic("19B10001-E8F2-537E-4F6C-D104768A1213", BLERead | BLEWrite);
+BLEIntCharacteristic HrCharacteristic("19B10001-E8F2-537E-4F6C-D104768A1214", BLERead | BLEWrite);
+BLEIntCharacteristic AccxCharacteristic("19B10001-E8F2-537E-4F6C-D104768A1215", BLERead | BLEWrite);
+BLEIntCharacteristic AccyCharacteristic("19B10001-E8F2-537E-4F6C-D104768A1216", BLERead | BLEWrite);
+BLEIntCharacteristic AcczCharacteristic("19B10001-E8F2-537E-4F6C-D104768A1217", BLERead | BLEWrite);
 
-// Reset pin, MFIO pin
-int resPin = 4;
-int mfioPin = 5;
+// --------------------- Setup ------------------------
+void setup() {
+  pinMode(PowerPin, OUTPUT);     
+  digitalWrite(PowerPin, HIGH);   
+  Serial.begin(9600);
+  delay(2000); //for the HR
+  Serial.println("Started");
 
+  if (!IMU.begin()) { //IMU INIT
+      Serial.println("Failed to initialize IMU!");
+      while (1);
+  }
+      
+  if (!BLE.begin()) { // BLE initialization
+    Serial.println("starting BLE failed!");
+    while (1);
+  }
 
-SparkFun_Bio_Sensor_Hub bioHub(resPin, mfioPin); 
-bioData body;  
-Adafruit_MPU6050 mpu;
-int steps=0;
+  // set advertised local name and service UUID:
+  BLE.setLocalName("LED");
+  BLE.setAdvertisedService(ledService);
+  delay(20); //for the HR
 
+  // add the characteristic to the service:
+  ledService.addCharacteristic(HrCharacteristic);
+  ledService.addCharacteristic(ConfidenceCharacteristic);
+  ledService.addCharacteristic(OxygenCharacteristic);
+  ledService.addCharacteristic(AccxCharacteristic);
+  ledService.addCharacteristic(AccyCharacteristic);
+  ledService.addCharacteristic(AcczCharacteristic);
+  delay(20); //for the HR
 
-void setup(){
-mpu.begin();
-  Serial1.begin(9600);
-  Wire.begin();
-  int result = bioHub.begin();
-  mpu.setAccelerometerRange(MPU6050_RANGE_8_G);
-  mpu.setGyroRange(MPU6050_RANGE_500_DEG);
-  mpu.setFilterBandwidth(MPU6050_BAND_21_HZ);
-  
+  // add service:
+  BLE.addService(ledService);
+  delay(20); //for the HR
 
-  delay(100);
-}
+  // set the initial value for the characeristic:
+  HrCharacteristic.writeValue(0);
+  OxygenCharacteristic.writeValue(0);
+  ConfidenceCharacteristic.writeValue(0);
+  AccxCharacteristic.writeValue(0);
+  AccyCharacteristic.writeValue(0);
+  AcczCharacteristic.writeValue(0);
 
+  BLE.advertise(); // start advertising
+  Serial.println("BLE LED Peripheral");
+  delay(2000); //for the HR
+  }
 
-void loop(){
-//initialise and read sensors variables 
-sensors_event_t a, g, temp;
-mpu.getEvent(&a, &g, &temp);
-body = bioHub.readBpm();
+// --------------------- Loop ------------------------
+  void loop() {
 
-//counting steps based on total acceleration
-float totalacc = sqrt(((a.acceleration.x) * (a.acceleration.x)) + ((a.acceleration.y) * (a.acceleration.y)) + ((a.acceleration.z) * (a.acceleration.z)));
-if (totalacc>10)
-{
-  steps++;
-}
+    Serial.println("Started");
+    
+    // listen for BLE peripherals to connect:
+    BLEDevice central = BLE.central();
 
-//sending the data over the UART1 port (bluetooth) to receive in unity over COM ports ( COM port should be checked from the computer bluetooth settings and inserted in unity serial script
-//COM port "dev" 
-//use json format for the sent data 
-Serial1.print("{");
-Serial1.print("\"steps\":");
-Serial1.print(steps);
-Serial1.print(",\"ax\":");
-Serial1.print(a.acceleration.x/10);
-Serial1.print(",\"ay\":");
-Serial1.print(a.acceleration.y/10);
-Serial1.print(",\"az\":");
-Serial1.print(a.acceleration.z/10);
-Serial1.print(",\"rx\":");
-Serial1.print(g.gyro.x);
-Serial1.print(",\"ry\":");
-Serial1.print(g.gyro.y);
-Serial1.print(",\"rz\":");
-Serial1.print(g.gyro.z);
-Serial1.print(",\"temp\":");
-Serial1.print(temp.temperature);
-Serial1.print(",\"b\":");
-Serial1.print(body.heartRate);
-Serial1.print(",\"c\":");
-Serial1.print(body.confidence);
-Serial1.print(",\"o\":");
-Serial1.print(body.oxygen);
-Serial1.println("}");
+    // if a central is connected to peripheral:
+    if (central) {
+      Serial.print("Connected to central: ");
+      // print the central's MAC address:
+      Serial.println(central.address());
 
+      // while the central is still connected to peripheral:
+      while (central.connected()) {
+        //HR
+        uint8_t rateValue;
+        heartrate.getValue(heartratePin);   // A1 foot sampled values
+        rateValue = heartrate.getRate();   // Get heart rate value 
+        Serial.println(rateValue);
 
+        if(rateValue)  {
+            Serial.println(rateValue);
+            HrCharacteristic.writeValue(rateValue);
+            }
+        delay(20);
+      
+        float x, y, z; //for Acc
+        
+        if (IMU.accelerationAvailable()) {
+          IMU.readAcceleration(x, y, z);
+              int intx, inty ,intz;
+              intx = (int) (x*1000); //send them as ints then restoring them to float on the other device
+              inty = (int) (y*1000);
+              intz = (int) (z*1000);
 
+        Serial.println(intx);
+        }
 
+      ConfidenceCharacteristic.writeValue(body.confidence);
+      OxygenCharacteristic.writeValue(body.oxygen);
 
+      AccxCharacteristic.writeValue(1);
+      AccyCharacteristic.writeValue(1);
+      AcczCharacteristic.writeValue(1);
+      }
 
-    //increase to lower the bandwidth of data being sent 
-    delay(250); 
+    // when the central disconnects, print it out:
+    Serial.print(("Disconnected from central: "));
+    Serial.println(central.address());
+    }//end of BLE
 }
